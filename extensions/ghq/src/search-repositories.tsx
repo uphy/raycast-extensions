@@ -166,9 +166,9 @@ export default function Command() {
 
   const openRepo = async (repo: Repo, editor: string) => {
     try {
-      await runner.openRepo(repo, editor);
       pop();
       closeMainWindow();
+      await runner.openRepo(repo, editor);
     } catch (error) {
       console.error("Error opening repository:", error);
     }
