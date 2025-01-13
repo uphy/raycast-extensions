@@ -25,6 +25,12 @@
           "placeholder": "Leave blank to search all repositories"
         }
       ]
+    },
+    {
+      "name": "clone-repository",
+      "title": "Clone Repository",
+      "description": "Clone a repository with ghq",
+      "mode": "view"
     }
   ],
   "preferences": [
