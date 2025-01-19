@@ -27,10 +27,34 @@
       ]
     },
     {
+      "name": "open-repository",
+      "title": "Open Repository",
+      "description": "Open the repository",
+      "mode": "view",
+      "preferences": [
+        {
+          "name": "path",
+          "description": "Path to the repository directory",
+          "type": "textfield",
+          "required": false,
+          "title": "Path"
+        }
+      ]
+    },
+    {
       "name": "clone-repository",
       "title": "Clone Repository",
       "description": "Clone a repository with ghq",
-      "mode": "view"
+      "mode": "view",
+      "arguments": [
+        {
+          "name": "url",
+          "description": "URL of the repository to clone",
+          "type": "text",
+          "required": true,
+          "placeholder": "e.g. https://github.com/xxx/yyy.git"
+        }
+      ]
     }
   ],
   "preferences": [

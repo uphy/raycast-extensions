@@ -1,5 +1,5 @@
-import { RepositoryList } from "./lib/components";
-import { useCommandRunner, usePreferences, useRepositories } from "./lib/hooks";
+import { RepositoryList } from "./components/";
+import { useCommandRunner, usePreferences, useRepositories } from "./hooks";
 
 export default function Command() {
   const preferences = usePreferences();

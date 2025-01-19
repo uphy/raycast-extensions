@@ -1,14 +1,18 @@
 import { getPreferenceValues } from "@raycast/api";
-import { CommandRunner, Repo } from "./command";
-import { useEffect, useState } from "react";
-import { Preferences } from "./preferences";
+import { CommandRunner, directoryName, Repo } from "../model/command";
+import { useEffect, useMemo, useState } from "react";
+import { Preferences } from "../model/preferences";
 
 export function usePreferences() {
-  return getPreferenceValues<Preferences>();
+  return useMemo(() => {
+    return getPreferenceValues<Preferences>();
+  }, []);
 }
 
 export function useCommandRunner(preferences: Preferences) {
-  return new CommandRunner(preferences.pathEnv);
+  return useMemo(() => {
+    return new CommandRunner(preferences.pathEnv);
+  }, [preferences]);
 }
 
 export function useRepositories(preferences: Preferences, runner: CommandRunner) {
@@ -20,7 +24,13 @@ export function useRepositories(preferences: Preferences, runner: CommandRunner)
     runner
       .list(query)
       .then((repoList) => {
-        setRepos(repoList);
+        const repos = repoList.map((path) => {
+          return {
+            fullPath: path,
+            name: directoryName(path),
+          };
+        });
+        setRepos(repos);
       })
       .catch((error) => {
         console.error("Error fetching repositories:", error);
