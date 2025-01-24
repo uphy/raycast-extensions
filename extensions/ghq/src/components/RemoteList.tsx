@@ -34,8 +34,8 @@ export function RemoteList(props: { repo: string; remotes: Remote[] }) {
       {remotes.map((remote) => (
         <List.Item
           key={remote.name}
-          title={remote.name}
-          subtitle={remote.url}
+          title={remote.url}
+          accessories={[{ tag: remote.name }]}
           actions={
             <ActionPanel>
               <Action.OpenInBrowser

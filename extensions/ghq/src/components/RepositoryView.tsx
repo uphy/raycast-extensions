@@ -81,7 +81,7 @@ export function RepositoryView(props: { path: string; runner: CommandRunner }) {
               />
             </ActionPanel>
           }
-          icon={{ source: Icon.Folder, tintColor: "#007ACC" }}
+          icon={{ source: Icon.Clipboard, tintColor: "#007ACC" }}
         />
         <List.Item
           title="Show in Finder"

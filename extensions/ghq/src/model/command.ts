@@ -15,6 +15,10 @@ export type PullRequest = {
   createdAt: Date;
   url: string;
   body: string;
+  author: {
+    login: string;
+    name: string;
+  };
 };
 
 export function directoryName(path: string): string {
@@ -49,10 +53,11 @@ export class CommandRunner {
       });
   }
 
-  async pullRequests(path: string): Promise<PullRequest[]> {
+  async pullRequests(path: string, query?: string): Promise<PullRequest[]> {
+    const q = query ?? "state:open";
     const result = await this.exec(
       "gh",
-      ["pr", "list", "--state", "open", "--json", "number,title,headRefName,createdAt,url,body"],
+      ["pr", "list", "--json", "number,title,headRefName,createdAt,url,body,author", "--search", q],
       { cwd: path },
     );
     const parsed = JSON.parse(result.stdout) as {
@@ -62,6 +67,7 @@ export class CommandRunner {
       createdAt: string;
       url: string;
       body: string;
+      author: any;
     }[];
     return parsed.map((pr) => {
       return {
@@ -71,6 +77,7 @@ export class CommandRunner {
         createdAt: new Date(pr.createdAt),
         url: pr.url,
         body: pr.body,
+        author: pr.author,
       };
     });
   }
