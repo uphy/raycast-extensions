@@ -117,7 +117,12 @@ export class CommandRunner {
   ): Promise<{ stdout: string; stderr: string }> {
     options = options || {};
     if (!options.env) {
-      options.env = { ...process.env, PATH: `${process.env.PATH}:${this.pathEnv}` };
+      options.env = {
+        ...process.env,
+        PATH: `${process.env.PATH}:${this.pathEnv}`,
+        NODE_PATH: undefined,
+        NODE_ENV: undefined,
+      };
     }
     const result = await execFileAsync(command, args, options);
     return result;
