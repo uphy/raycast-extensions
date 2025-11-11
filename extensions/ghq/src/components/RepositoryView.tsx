@@ -30,6 +30,15 @@ export function RepositoryView(props: { path: string; runner: CommandRunner }) {
     <List navigationTitle={directoryName(props.path)}>
       <List.Section title="Editor">
         <List.Item
+          title="Open with Cursor"
+          actions={
+            <ActionPanel>
+              <Action title="Open" onAction={() => openRepo(props.path, "cursor")} />
+            </ActionPanel>
+          }
+          icon={{ source: Icon.Code, tintColor: "#007ACC" }}
+        />
+        <List.Item
           title="Open with Visual Studio Code"
           actions={
             <ActionPanel>
