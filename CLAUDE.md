@@ -12,24 +12,43 @@ Raycast extension を複数ぶら下げただけの薄いリポジトリ。ル�
 
 ## コマンド
 
-必ず対象 extension のディレクトリに `cd` してから実行する。ルートで叩いても何も起きない。
+workspace ではないので横断コマンドはループするしかない。そのループを `scripts/each-extension.sh` が持ち、`mise.toml` のタスクがそれを呼ぶ。ルートから:
 
 ```bash
-cd extensions/ghq
-npm install       # 初回のみ（現状 node_modules があるのは ghq だけ）
-npm run dev       # ray develop: Raycast に開発版を注入してホットリロード
-npm run build     # ray build
-npm run lint      # ray lint
-npm run fix-lint  # ray lint --fix
+mise run install     # 全 extension の npm install + git hooks の有効化
+mise run check       # CI と同じ: lint + typecheck + build-dist
+mise run lint        # ray lint
+mise run fix         # ray lint --fix
+mise run typecheck   # tsc --noEmit
+mise run build       # ray build = ローカル Raycast へデプロイ
+mise run build-dist  # 配布ビルド。型検査あり、Raycast アプリには触らない
 ```
 
-**ビルド = ローカル Raycast へのデプロイ**。`ray build` は既定で `-e dev` として動き、出力先が `~/.config/raycast/extensions/<name>/` なので、ビルドした時点で Raycast アプリにインストールされる。「ビルドはしたがデプロイはしていない」という状態は存在しない。反映されないときは Raycast の再起動を試す。
+`EXTENSIONS="ghq slack-operator" mise run lint` で対象を絞れる。extension 単体を触るときは従来どおり `cd` して `npm run dev` / `npm run build` / `npm run lint` / `npm run typecheck`。
 
-テストは存在しない（テストランナーも設定されていない）。`ray build` は esbuild で束ねるだけで型検査をしないので、型の確認には別途 `npx tsc --noEmit` を走らせる。`npm run publish` は Raycast Store への公開なので、明示的に依頼されない限り実行しない。
-
-`.claude/hooks/build-changed.sh` が Stop hook として登録してあり、応答終了時に `extensions/` 配下に未コミットの変更がある extension を自動でビルドする。手動でビルドしなくてもデプロイ済みの状態は保たれるが、ビルドが失敗した場合は exit 2 でエラーが差し戻される。
+**ビルド = ローカル Raycast へのデプロイ**。`ray build` は既定で `-e dev` として動き、出力先が `~/.config/raycast/extensions/<name>/` なので、ビルドした時点で Raycast アプリにインストールされる。「ビルドはしたがデプロイはしていない」という状態は存在しない。反映されないときは Raycast の再起動を試す。Raycast を汚さずにビルドを検証したいときは `-e dist`（= `mise run build-dist`、出力先は各 extension の `.dist/`）を使う。
 
 `raycast-env.d.ts` は package.json の manifest から `ray` が自動生成する。手で編集しない。gitignore 済みだが ghq には commit 済みのものが残っている。
+
+## 品質チェック
+
+テストは存在しない（テストランナーも設定されていない）。`npm run publish` は Raycast Store への公開なので、明示的に依頼されない限り実行しない。
+
+`ray lint` は manifest 検証・icon 検証・ESLint・Prettier の 4 つを束ねたもの。このうち manifest 検証は `author` を Raycast Store の API (`/api/v1/users/<author>`) に問い合わせて実在確認するため **ネットワークが必要**で、Store に無い author 名だと必ず exit 2 になる（`--relaxed` でも `--no-exit-on-error` でも回避できない）。author は Store の実アカウントである `uphy` に揃えてある。ここを変えると全 extension の lint が落ちる。
+
+型検査は environment 依存で、`-e dev` は esbuild で束ねるだけで型を見ない。`-e dist` は型検査する。日常的な確認には `mise run typecheck`（= `tsc --noEmit`）を使う。
+
+自動チェックは 3 段構え:
+
+- **pre-commit hook** (`.githooks/pre-commit`) — staged な変更のある extension だけ Prettier・ESLint・tsc を実行する。3 つとも最後まで走らせて結果をまとめて報告する。`ray lint` はネットワーク必須でオフライン時に commit を止めてしまうため、ここには入れず CI に任せている。`git config core.hooksPath .githooks` で有効になり、`mise run install` がその設定をする
+- **Stop hook** (`.claude/hooks/build-changed.sh`) — 応答終了時に `extensions/` 配下に未コミットの変更がある extension を自動でビルドする。手動でビルドしなくてもデプロイ済みの状態は保たれるが、ビルドが失敗した場合は exit 2 でエラーが差し戻される
+- **CI** (`.github/workflows/ci.yml`) — push / PR で shellcheck と `mise run check`。shellcheck は SC2016（メッセージ中のバッククォート）を避けるため `--severity=warning` で回している。action は pinact で commit SHA に固定してあるので、バージョンを上げたら `pinact run` を掛け直す
+
+## 依存
+
+`npm audit` は 3 extension とも 11 件（high 10・low 1）を報告するが、すべて `@raycast/api` の依存ツリー内（oclif / ejs / jake / esbuild）で、`@raycast/api` を最新にしても消えない。`npm audit fix --force` は `@raycast/api` を 1.104.9 に **ダウングレード** して「解消」するので実行しない。上流の更新を待つ。
+
+`@raycast/api` の peerDependencies が `@types/react` と `@types/node` のバージョンを厳密に指定している（1.104 系では 19.0.10 / 22.19.17）。ここがずれると Raycast のコンポーネントが軒並み TS2786「cannot be used as a JSX component」で落ちるので、`@raycast/api` を上げるときは peer の指定に合わせる。
 
 ## アーキテクチャ
 
@@ -73,4 +92,8 @@ Obsidian の設定ファイル 2 段を読むだけで、書き込みは一切�
 
 ## コーディング規約
 
-`@raycast/eslint-config` と prettier（`printWidth: 120`, double quote）に従う。VSCode は保存時フォーマットが有効。TypeScript は `strict: true`。各 extension で設定ファイルは複製されているので、規約を変えるなら 3 箇所すべてを揃える。
+`@raycast/eslint-config`（2 系。flat config なので設定は `eslint.config.js`）と prettier（`printWidth: 120`, double quote）に従う。TypeScript は `strict: true`。`eslint.config.js` / `.prettierrc` / `tsconfig.json` は各 extension で複製されているので、規約を変えるなら 3 箇所すべてを揃える。
+
+VSCode は保存時フォーマット＋ESLint の自動修正が有効で、フォーマッタは `esbenp.prettier-vscode` を指定してある（`.vscode/settings.json`）。この拡張が入っていないと保存時に TypeScript 既定のフォーマッタが動いて `.prettierrc` を無視するので、推奨拡張は入れておく。エディタ非依存の最低限（インデント・改行・文字コード）はルートの `.editorconfig` が持つ。
+
+`ray lint` の Prettier は `CHANGELOG.md` と `package.json` を対象にしていない。この 2 つは実際 Prettier 非準拠なので、`npx prettier --write .` をリポジトリ全体に掛けると差分が出る。`package.json` は Raycast の manifest 形式が優先なので掛けないこと。
