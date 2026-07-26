@@ -1,0 +1,88 @@
+{
+  "$schema": "https://www.raycast.com/schemas/extension.json",
+  "name": "notes-tasks",
+  "title": "Notes Tasks",
+  "description": "Browse the work items of an Obsidian vault task system through its generated JSON index",
+  "icon": "extension-icon.png",
+  "author": "uphy",
+  "categories": [
+    "Productivity"
+  ],
+  "license": "MIT",
+  "commands": [
+    {
+      "name": "today",
+      "title": "Today's Tasks",
+      "description": "Show today's deterministic work candidates, with what is starting soon and what is excluded",
+      "mode": "view"
+    },
+    {
+      "name": "search-tasks",
+      "title": "Search Work Items",
+      "description": "Search every work item by title, project, status and priority, and see what each one blocks",
+      "mode": "view"
+    },
+    {
+      "name": "top-task",
+      "title": "Top Task",
+      "description": "Keep today's first candidate in the menu bar",
+      "mode": "menu-bar",
+      "interval": "15m",
+      "preferences": [
+        {
+          "name": "menuBarDisplay",
+          "type": "dropdown",
+          "required": false,
+          "title": "Menu Bar Display",
+          "description": "How much to show next to the icon. The icon alone already carries the state through its colour, and the task name is in the tooltip.",
+          "default": "icon",
+          "data": [
+            {
+              "title": "Icon only",
+              "value": "icon"
+            },
+            {
+              "title": "Icon and overdue count",
+              "value": "count"
+            },
+            {
+              "title": "Icon and task name",
+              "value": "title"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "preferences": [
+    {
+      "name": "vaultPath",
+      "type": "textfield",
+      "required": false,
+      "title": "Vault Path",
+      "description": "Path to the Obsidian vault holding tasks/. The index is read from tasks/_scripts/.index.json inside it.",
+      "default": "~/dev/notes"
+    }
+  ],
+  "dependencies": {
+    "@raycast/api": "^1.104.23",
+    "@raycast/utils": "^2.2.7"
+  },
+  "devDependencies": {
+    "@raycast/eslint-config": "^2.2.0",
+    "@types/node": "22.19.17",
+    "@types/react": "19.0.10",
+    "eslint": "^10.8.0",
+    "prettier": "^3.3.3",
+    "typescript": "^5.4.5"
+  },
+  "scripts": {
+    "build": "ray build",
+    "dev": "ray develop",
+    "fix-lint": "ray lint --fix",
+    "lint": "ray lint",
+    "prepublishOnly": "echo \"\\n\\nIt seems like you are trying to publish the Raycast extension to npm.\\n\\nIf you did intend to publish it to npm, remove the \\`prepublishOnly\\` script and rerun \\`npm publish\\` again.\\nIf you wanted to publish it to the Raycast Store instead, use \\`npm run publish\\` instead.\\n\\n\" && exit 1",
+    "publish": "npx @raycast/api@latest publish",
+    "typecheck": "tsc --noEmit"
+  }
+}
