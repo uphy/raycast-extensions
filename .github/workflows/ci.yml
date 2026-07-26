@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # info-level findings are mostly backticks inside message strings, which
+      # are intentional, so only warnings and above fail the build. ubuntu-latest
+      # ships shellcheck; the fallback keeps this working under act's images too.
+      - name: Shellcheck
+        run: |
+          command -v shellcheck >/dev/null || { sudo apt-get update && sudo apt-get install -y shellcheck; }
+          shellcheck --severity=warning scripts/*.sh .githooks/* .claude/hooks/*.sh
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: extensions/*/package-lock.json
+
+      - uses: jdx/mise-action@v2
+
+      # Not an npm workspace, so each extension installs on its own.
+      - name: Install dependencies
+        run: ./scripts/each-extension.sh --allow-missing-deps npm ci
+
+      # lint + typecheck + build-dist. `ray lint` validates the manifest against
+      # the Raycast Store API (it resolves the `author` field over the network),
+      # so this step needs internet access and can fail if that API is down.
+      - name: Lint, type-check and build
+        run: mise run check
