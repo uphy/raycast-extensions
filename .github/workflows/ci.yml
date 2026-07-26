@@ -13,7 +13,7 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # info-level findings are mostly backticks inside message strings, which
       # are intentional, so only warnings and above fail the build. ubuntu-latest
@@ -23,13 +23,13 @@ jobs:
           command -v shellcheck >/dev/null || { sudo apt-get update && sudo apt-get install -y shellcheck; }
           shellcheck --severity=warning scripts/*.sh .githooks/* .claude/hooks/*.sh
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: extensions/*/package-lock.json
 
-      - uses: jdx/mise-action@v2
+      - uses: jdx/mise-action@v4
 
       # Not an npm workspace, so each extension installs on its own.
       - name: Install dependencies
