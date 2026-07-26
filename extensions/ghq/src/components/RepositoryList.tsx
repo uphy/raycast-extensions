@@ -22,6 +22,11 @@ export function RepositoryList(props: { runner: CommandRunner; repos: Repo[]; lo
           actions={
             <ActionPanel>
               <Action.Push title="Open" target={<RepositoryView path={repo.fullPath} runner={props.runner} />} />
+              <Action.CopyToClipboard
+                title="Copy Path"
+                content={repo.fullPath}
+                shortcut={{ modifiers: ["opt"], key: "enter" }}
+              />
               <Action.CreateQuicklink
                 title="Create Quicklink"
                 quicklink={{
