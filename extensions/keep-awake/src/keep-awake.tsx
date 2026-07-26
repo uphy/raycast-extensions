@@ -1,13 +1,31 @@
-import { Action, ActionPanel, Color, Icon, Image, List, showToast, Toast } from "@raycast/api";
+import {
+  Action,
+  ActionPanel,
+  closeMainWindow,
+  Color,
+  Icon,
+  Image,
+  LaunchProps,
+  List,
+  showHUD,
+  showToast,
+  Toast,
+} from "@raycast/api";
 import { showFailureToast, usePromise } from "@raycast/utils";
-import { useCallback, useEffect } from "react";
-import { KeepAwakeState, readState, Status, statusOf, timerPresets, turnOff, turnOn } from "./model";
+import { useCallback, useEffect, useRef } from "react";
+import { KeepAwakeState, parseDuration, readState, Status, statusOf, timerPresets, turnOff, turnOn } from "./model";
 
 // 開いている間だけ実体を読み直す。期限切れは caffeinate 側で起きるので、
 // 表示を追いつかせるにはこちらから見に行くしかない。
 const REFRESH_INTERVAL_MS = 5000;
 
-export default function Command() {
+type Arguments = {
+  /** `on` / `off` / `30m` / `3h`。空なら通常どおり UI を開くだけ */
+  state: string;
+};
+
+export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
+  const requested = (props.arguments?.state ?? "").trim().toLowerCase();
   const {
     data: state,
     isLoading,
@@ -20,6 +38,32 @@ export default function Command() {
     }, REFRESH_INTERVAL_MS);
     return () => clearInterval(timer);
   }, [revalidate]);
+
+  // 引数付きの起動は deeplink / Quicklink / ホットキーからの「操作の指示」なので、
+  // 適用して窓を閉じ、UI を見せずに終える。これがあるおかげで外部のシェルから
+  // 状態を切り替えられ、同じロジックを shell 側に持つ必要がない。
+  //
+  // deeplink に launchType=background は付けられない。付けると view コマンドは
+  // 実行すらされない(実測: 痕跡も状態変化もゼロ)。付けなければ窓はフォーカスを
+  // 奪わずに開くので、閉じるのはこちらの仕事になる。
+  const handled = useRef(false);
+  useEffect(() => {
+    if (requested === "" || handled.current) {
+      return;
+    }
+    handled.current = true;
+    void (async () => {
+      try {
+        const message = await applyArgument(requested);
+        await showHUD(message);
+        await closeMainWindow();
+      } catch (error) {
+        // 失敗したときは閉じない。状態を見せて理由に気づけるようにする。
+        await showFailureToast(error, { title: "切り替えられませんでした" });
+        await revalidate();
+      }
+    })();
+  }, [requested, revalidate]);
 
   const apply = useCallback(
     async (running: string, done: string, action: () => Promise<void>) => {
@@ -127,6 +171,23 @@ export default function Command() {
       </List.Section>
     </List>
   );
+}
+
+async function applyArgument(requested: string): Promise<string> {
+  if (requested === "off") {
+    await turnOff();
+    return "常時起動モード: OFF";
+  }
+  if (requested === "on") {
+    await turnOn(null);
+    return "常時起動モード: ON（無期限）";
+  }
+  const duration = parseDuration(requested);
+  if (duration === null) {
+    throw new Error(`引数 "${requested}" を解釈できません。on / off / 30m / 3h のいずれかを渡してください。`);
+  }
+  await turnOn(duration.seconds);
+  return `常時起動モード: ON（${duration.label}）`;
 }
 
 function StatusDetail({ state }: { state: KeepAwakeState | undefined }) {

@@ -14,7 +14,15 @@
       "name": "keep-awake",
       "title": "Keep Awake",
       "description": "Show whether the Mac is being kept awake, and turn it on or off with an optional timer",
-      "mode": "view"
+      "mode": "view",
+      "arguments": [
+        {
+          "name": "state",
+          "type": "text",
+          "required": false,
+          "placeholder": "on, off, 30m, 3h"
+        }
+      ]
     }
   ],
   "preferences": [

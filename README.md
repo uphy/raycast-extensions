@@ -30,6 +30,12 @@ Keeps the Mac awake with the lid closed, indefinitely or until a timer runs out.
 
 Two things have to hold for a closed lid not to sleep, and the command reports both: `pmset disablesleep` and a running `caffeinate -d -i -s`. If only one of them is up, it says so and offers to converge on the ON side — drifting to OFF would put the machine to sleep inside a closed lid.
 
+The command also takes an optional `on` / `off` / `30m` / `3h` argument, so a deeplink switches the state with no interaction and no second command. That is how [raycast-script-commands](https://github.com/uphy/raycast-script-commands) drives it instead of keeping its own copy of the logic:
+
+```bash
+open 'raycast://extensions/uphy/keep-awake/keep-awake?arguments=%7B%22state%22%3A%22on%22%7D'
+```
+
 A timer is enforced by `caffeinate -t` itself, which then resets `disablesleep` as it exits. Nothing needs to be running for the deadline to hold: background refresh is only available to `no-view` and `menu-bar` commands, and macOS shifts its schedule on battery, so it cannot be trusted with a deadline.
 
 Needs passwordless `sudo` for the two `pmset` invocations. Set it up once with `sudo visudo -f /etc/sudoers.d/pmset-disablesleep`:

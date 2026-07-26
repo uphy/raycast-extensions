@@ -22,12 +22,13 @@ function parsePresets(value: string): TimerPreset[] {
     .split(",")
     .map((entry) => entry.trim())
     .filter((entry) => entry !== "")
-    .map(parsePreset)
+    .map(parseDuration)
     .filter((preset): preset is TimerPreset => preset !== null);
 }
 
-function parsePreset(entry: string): TimerPreset | null {
-  const match = /^(\d+)\s*([mh])$/i.exec(entry);
+/** `30m` / `3h` を秒に直す。読めなければ null。preference と deeplink の引数で共用する。 */
+export function parseDuration(entry: string): TimerPreset | null {
+  const match = /^(\d+)\s*([mh])$/i.exec(entry.trim());
   if (match === null) {
     return null;
   }
