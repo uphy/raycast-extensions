@@ -124,7 +124,8 @@ export class CommandRunner {
         NODE_ENV: undefined,
       };
     }
-    const result = await execFileAsync(command, args, options);
-    return result;
+    // Without an explicit encoding the overload resolves to Buffer output, and
+    // every caller here parses the result as text.
+    return await execFileAsync(command, args, { ...options, encoding: "utf8" });
   }
 }
