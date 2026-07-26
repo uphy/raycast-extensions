@@ -29,7 +29,7 @@ mise run build-dist  # 配布ビルド。型検査あり、Raycast アプリに�
 
 **ビルド = ローカル Raycast へのデプロイ**。`ray build` は既定で `-e dev` として動き、出力先が `~/.config/raycast/extensions/<name>/` なので、ビルドした時点で Raycast アプリにインストールされる。「ビルドはしたがデプロイはしていない」という状態は存在しない。反映されないときは Raycast の再起動を試す。Raycast を汚さずにビルドを検証したいときは `-e dist`（= `mise run build-dist`、出力先は各 extension の `.dist/`）を使う。
 
-ただし**新規に作った extension は `ray build` だけでは Raycast に現れない**。`ray build` はバンドルを書くだけで、Raycast に取り込ませるのは `ray develop`（= `npm run dev`）の役目。一度走らせると `~/Library/Application Support/com.raycast.macos/extensions/<name>/` が作られ、そこで初めてコマンドが検索に出る。この登録は dev を止めても残るので、初回だけ実行すればよく、以降の更新は `ray build` で足りる。extension を作ったのに見つからないときは、まずこれを疑う。
+ただし**新規に作った extension も、既存 extension に新規追加したコマンドも、`ray build` だけでは Raycast に現れない**。`ray build` はバンドルを書くだけで、Raycast に取り込ませるのは `ray develop`（= `npm run dev`）の役目。一度走らせると `~/Library/Application Support/com.raycast.macos/extensions/<name>/` が作られ、そこで初めてコマンドが検索や deeplink から引ける。この登録は dev を止めても残るので初回だけ実行すればよく、以降の同じコマンドの更新は `ray build` で足りる。作ったのに見つからない・deeplink が無反応、というときはまずこれを疑う。
 
 `raycast-env.d.ts` は package.json の manifest から `ray` が自動生成する。手で編集しない。gitignore 済みだが ghq には commit 済みのものが残っている。
 
@@ -74,6 +74,22 @@ Raycast Pro の契約がないため **AI 系 API は動かない**。`AI.ask` /
 `package.json` の `commands[].name` が `src/<name>.tsx`（または `.ts`）の default export と 1:1 で対応する。コマンドを追加するときは両方を同時に変更する必要がある。`mode: "view"` は React コンポーネントを返し、`mode: "no-view"` は副作用だけの async 関数を返す（slack-operator が後者）。
 
 引数の受け渡しには 2 系統あり、混同しやすい。manifest の `arguments` は `LaunchProps<{ arguments: T }>` から読み、`preferences` は `getPreferenceValues<T>()` から読む。`createDeeplink({ command, arguments })` で渡せるのは前者だけなので、deeplink / Quicklink で外から値を渡すコマンド（`open-repository` がこれ）は必ず `arguments` で宣言する。宣言を変えたら `npm run build` を実行して `raycast-env.d.ts` を再生成する。
+
+### deeplink をシェルから叩く
+
+`arguments` を宣言してあれば **`view` コマンドでも deeplink から無操作で実行できる**。`extensions/keep-awake` がこれで、外部のシェルスクリプト（`uphy/raycast-script-commands` の remote mode）から状態を切り替えるための入口を兼ねている。おかげで shell 側に同じロジックを二重に持たずに済む。
+
+```bash
+open 'raycast://extensions/uphy/keep-awake/keep-awake?arguments=%7B%22state%22%3A%22on%22%7D'
+```
+
+`view` コマンドを deeplink で叩くときの要点は 3 つ。すべて実測で確かめたもので、うち 2 つはドキュメントに書いていない。
+
+- **`launchType=background` を付けてはいけない**。付けると `view` コマンドは**実行すらされない**（副作用も痕跡も一切残らず、Raycast は最前面にも出てこない）。`no-view` なら `launchType=background` で動くが、`view` では黙って無視される。ドキュメントは `launchType` をモード別に制限していないので、ここは踏みやすい
+- **窓を閉じるのは自分の仕事**。`launchType` なしだと窓はフォーカスを奪わずに開き、そのまま残る。引数付き起動の処理の最後に `closeMainWindow()` を呼ぶ（keep-awake がそうしている）。失敗時は閉じずに状態を見せる方が親切
+- 公式ドキュメント（`information/lifecycle/deeplinks.md`）は「deeplink でコマンドを起動すると Raycast が毎回確認を求める」と書いているが、**ローカルインストール済みの extension では確認は出ない**。dev を止めた状態で連続実行し、一度も操作せず状態が変わることを確認した
+
+**`arguments` は URL エンコードした JSON**（`{"state":"on"}` → `%7B%22state%22%3A%22on%22%7D`）。また `open` は投げっぱなしで、コマンドの成否も完了も呼び出し元に返らない。失敗すると困る場面では呼び出し側で結果の状態を見て待つ（`enter-remote-mode.sh` がそうしている）。
 
 ### ghq: 外部コマンドの実行と PATH
 
