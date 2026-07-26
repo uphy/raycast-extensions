@@ -23,7 +23,11 @@ npm run lint      # ray lint
 npm run fix-lint  # ray lint --fix
 ```
 
-テストは存在しない（テストランナーも設定されていない）。`npm run publish` は Raycast Store への公開なので、明示的に依頼されない限り実行しない。
+**ビルド = ローカル Raycast へのデプロイ**。`ray build` は既定で `-e dev` として動き、出力先が `~/.config/raycast/extensions/<name>/` なので、ビルドした時点で Raycast アプリにインストールされる。「ビルドはしたがデプロイはしていない」という状態は存在しない。反映されないときは Raycast の再起動を試す。
+
+テストは存在しない（テストランナーも設定されていない）。`ray build` は esbuild で束ねるだけで型検査をしないので、型の確認には別途 `npx tsc --noEmit` を走らせる。`npm run publish` は Raycast Store への公開なので、明示的に依頼されない限り実行しない。
+
+`.claude/hooks/build-changed.sh` が Stop hook として登録してあり、応答終了時に `extensions/` 配下に未コミットの変更がある extension を自動でビルドする。手動でビルドしなくてもデプロイ済みの状態は保たれるが、ビルドが失敗した場合は exit 2 でエラーが差し戻される。
 
 `raycast-env.d.ts` は package.json の manifest から `ray` が自動生成する。手で編集しない。gitignore 済みだが ghq には commit 済みのものが残っている。
 
