@@ -8,6 +8,7 @@ Raycast extension を複数ぶら下げただけの薄いリポジトリ。ル�
 
 - `extensions/ghq` — ghq 管理下のリポジトリ検索・clone・エディタ/ブラウザで開く・`gh` 経由の PR 一覧
 - `extensions/keep-awake` — 蓋を閉じてもスリープさせない状態の確認と切り替え（タイマー付き）
+- `extensions/notes-tasks` — Obsidian vault（`~/dev/notes`）のタスクシステムを読む。今日の候補・work items 検索・メニューバー
 - `extensions/obsidian-reminder` — obsidian-reminder-plugin の `data.json` を読んでリマインダ一覧を表示
 - `extensions/slack-operator` — AppleScript で Slack にキーストロークを送る（未読・スレッド・チャンネル切替）
 
@@ -107,6 +108,20 @@ Raycast のプロセスは通常のログインシェルの PATH を継承しな
 `src/model/storage.ts` の `storage` シングルトンが `LocalStorage` を包む唯一の入口。キーは `"r:" + リポジトリの絶対パス` で、値は `RepositoryData`（PR 検索クエリの履歴＋保存済みクエリ）の JSON。リポジトリ単位で分かれているので、横断的な列挙はできない構造になっている。
 
 `src/hooks/index.ts` は `usePreferences` → `useCommandRunner` → `useRepositories` の順で使う前提。`CommandRunner` は `useMemo` で 1 コマンド 1 インスタンスに保たれ、以降 props で下のコンポーネントに手渡しされる（context は使っていない）。
+
+### notes-tasks: 外部リポジトリとの契約は JSON にする
+
+vault（`~/dev/notes`、別リポジトリ）のタスクシステムを読むが、**Markdown も frontmatter も wikilink も解釈しない**。vault 側の決定論スクリプト `tasks/_scripts/today.py --write` が `今日の候補.md`（人がObsidianで読む）と `tasks/_scripts/.index.json`（この extension が読む）を同時に生成し、こちらは `JSON.parse` 1回で終わる。索引生成は vault の PostToolUse hook に相乗りしているので、hook 設定の追加は無い。
+
+索引は **「読み手側に計算・整形を残さない」** ところまで vault 側で寄せてある。`estimate: "3d"` は `estimate_days: 3.0` として、`notion_id` は page_id を解決した `notion_url` として、`obsidian_uri` はURLエンコード済みで、`depends_on` は逆引きした `blocks` も添えて、本文は `## 見出し` 単位の配列＋チェックボックスの `{done,total}` 集計として入る。ここを削ると extension 側にパーサが生えるので、拡張するときも同じ側に寄せる。
+
+逆に**表示用の文字列（絵文字・`⏰07/24⚠超過` 等）は索引に入れない**。コードや日付をアイコン・ラベルへ写すのは `src/model/display.ts` の責務で、表示都合を vault へ漏らさない。
+
+**完全 read-only**。vault はタスクの状態変更を単一 writer（`task-manager` subagent）に集約しているので、ここから status も順序も書かない。その帰結として、日付をまたぐと索引の `today.base_date` が前日のままになる（候補は基準日を引数に計算済みのため）。両 view と menu bar はそれを検出して「索引が古い」と出す。
+
+`schema_version` が 2リポジトリ間の契約。`tasklib.INDEX_SCHEMA_VERSION` と `src/model/index-file.ts` の `SUPPORTED_SCHEMA_VERSION` を対で上げる。
+
+**menu-bar の横幅**: 日本語のタスク名をタイトルに出すと menu bar を大きく占有するので、既定は `title` 無し＝アイコンのみ。`tintColor` は menu bar でもそのまま効く（実測: `Icon.Circle` が指定色のリングとして描かれる）ので、状態は形ではなく色に載せている（超過=赤・索引が古い=紫・候補なし=緑・それ以外=1位のpriority色）。名前と件数は tooltip とプルダウンが持つ。表示量は command preference `menuBarDisplay` で切り替えられる。
 
 ### obsidian-reminder: 読み取り専用のファイル解析
 

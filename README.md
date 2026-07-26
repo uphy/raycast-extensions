@@ -46,6 +46,22 @@ Needs passwordless `sudo` for the two `pmset` invocations. Set it up once with `
 
 `caffeinate -s` only takes effect on AC power, so the command flags battery operation rather than pretending it worked. Timer presets are configurable through the **Timer Presets** preference.
 
+### Notes Tasks
+
+Browses the work items of an Obsidian vault task system — one file per task, an outline carrying the ordering, and a deterministic script deriving today's candidates from both.
+
+| Command | Description |
+| --- | --- |
+| Today's Tasks | Today's candidates in the order the vault derived, plus what starts soon and what is excluded |
+| Search Work Items | Every work item, filtered by project, backlog or blocking, with what each one unblocks |
+| Top Task | The first candidate in the menu bar, as a single coloured dot |
+
+Japanese task names are wide, so the menu bar shows the icon alone and carries the state in its colour — red when something is overdue, purple when the index is stale, green when there is nothing left, otherwise the top candidate's priority. The name and the counts are in the tooltip and the dropdown. **Menu Bar Display** trades width back for an overdue count or the task name.
+
+The extension parses no Markdown. The vault's own script emits a structured `tasks/_scripts/.index.json` alongside the human-facing note, resolved far enough that nothing is left to compute here — durations as numbers, Notion page ids resolved to URLs, `depends_on` reversed into `blocks`, bodies split per heading with checkbox counts. Display strings stay out of it, so presentation never leaks back into the vault.
+
+Read-only by design: the vault routes every task mutation through a single writer. Set **Vault Path** to the vault holding `tasks/` (default `~/dev/notes`).
+
 ### Obsidian Reminder
 
 Lists the reminders held by [obsidian-reminder-plugin](https://github.com/uphy/obsidian-reminder), grouped by due date: Overdue, Today, Tomorrow, In a week, In a month and Over 1 month. Read-only — it parses Obsidian's `obsidian.json` and the plugin's `data.json` and never writes to them.
