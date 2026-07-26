@@ -83,6 +83,7 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
 
   const status = state === undefined ? undefined : statusOf(state);
   const detail = <StatusDetail state={state} />;
+  const primary = primaryAction(state);
 
   const reload = (
     <Action
@@ -97,38 +98,26 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
 
   return (
     <List isLoading={isLoading} isShowingDetail searchBarPlaceholder="操作を検索">
-      <List.Section title="状態">
-        <List.Item
-          icon={statusIcon(status)}
-          title={statusTitle(status)}
-          subtitle={statusSubtitle(state)}
-          accessories={statusAccessories(state)}
-          detail={detail}
-          actions={
-            <ActionPanel>
-              {status === "on" ? (
-                <Action
-                  title="無効化する"
-                  icon={Icon.Xmark}
-                  onAction={() => apply("無効化しています…", "無効化しました", turnOff)}
-                />
-              ) : (
-                <Action
-                  // partial のときは script command 版と同じく ON 側に揃える。
-                  // ドリフトが勝手に OFF に倒れると、閉じた蓋の中で眠ってしまう。
-                  title={status === "partial" ? "揃えて有効化する" : "無期限で有効化する"}
-                  icon={Icon.Bolt}
-                  onAction={() =>
-                    apply("有効化しています…", "有効化しました", () => turnOn(state?.keeper?.durationSeconds ?? null))
-                  }
-                />
-              )}
-              {reload}
-            </ActionPanel>
-          }
-        />
-      </List.Section>
-      <List.Section title={status === "on" ? "タイマーを張り替える" : "有効化"}>
+      {/* 一覧の項目は「いま Enter を押すと起きること」を名乗る。状態を名乗らせると
+          ラベルと挙動がずれ、ActionPanel を開くまで何が走るか分からなくなる。
+          状態は同じ行の subtitle と右のバッジが持つので、ひと目で分かるままにできる。 */}
+      <List.Item
+        icon={primary.icon}
+        title={primary.title}
+        accessories={statusAccessories(state)}
+        detail={detail}
+        actions={
+          <ActionPanel>
+            <Action
+              title={primary.title}
+              icon={primary.icon}
+              onAction={() => apply(primary.running, primary.done, primary.run)}
+            />
+            {reload}
+          </ActionPanel>
+        }
+      />
+      <List.Section title={status === "on" ? "タイマーを張り替える" : "時間を決めて有効化"}>
         {timerPresets().map((preset) => (
           <List.Item
             key={preset.seconds}
@@ -152,22 +141,25 @@ export default function Command(props: LaunchProps<{ arguments: Arguments }>) {
             }
           />
         ))}
-        <List.Item
-          icon={Icon.Bolt}
-          title="無期限"
-          accessories={[{ text: "手動で無効化するまで" }]}
-          detail={detail}
-          actions={
-            <ActionPanel>
-              <Action
-                title={status === "on" ? "無期限に張り替える" : "無期限で有効化する"}
-                icon={Icon.Bolt}
-                onAction={() => apply("有効化しています…", "無期限で有効化しました", () => turnOn(null))}
-              />
-              {reload}
-            </ActionPanel>
-          }
-        />
+        {/* ON でないときは先頭の項目がそのまま「無期限で有効化する」なので、
+            ここに並べると同じ操作が 2 つになる。 */}
+        {status === "on" && (
+          <List.Item
+            icon={Icon.Bolt}
+            title="無期限にする"
+            detail={detail}
+            actions={
+              <ActionPanel>
+                <Action
+                  title="無期限にする"
+                  icon={Icon.Bolt}
+                  onAction={() => apply("有効化しています…", "無期限で有効化しました", () => turnOn(null))}
+                />
+                {reload}
+              </ActionPanel>
+            }
+          />
+        )}
       </List.Section>
     </List>
   );
@@ -272,40 +264,54 @@ function statusTitle(status: Status | undefined): string {
   }
 }
 
-function statusSubtitle(state: KeepAwakeState | undefined): string | undefined {
-  if (state === undefined) {
-    return undefined;
+type PrimaryAction = {
+  title: string;
+  icon: Icon;
+  running: string;
+  done: string;
+  run: () => Promise<void>;
+};
+
+/** 先頭の項目に置く「いま一番やりたいであろう操作」。 */
+function primaryAction(state: KeepAwakeState | undefined): PrimaryAction {
+  if (state !== undefined && statusOf(state) === "on") {
+    return {
+      title: "無効化する",
+      icon: Icon.Xmark,
+      running: "無効化しています…",
+      done: "無効化しました",
+      run: turnOff,
+    };
   }
-  switch (statusOf(state)) {
-    case "on":
-      return state.keeper?.remainingSeconds != null
-        ? `残り ${formatDuration(state.keeper.remainingSeconds)}`
-        : "無期限";
-    case "partial":
-      return `${state.sleepDisabled ? "sleep 無効化済み" : "sleep 有効なまま"} / ${
-        state.keeper !== null ? "caffeinate 稼働中" : "caffeinate なし"
-      }`;
-    default:
-      return undefined;
-  }
+  // partial のときは script command 版と同じく ON 側に揃える。ドリフトが勝手に
+  // OFF に倒れると、閉じた蓋の中で眠ってしまう。
+  const duration = state?.keeper?.durationSeconds ?? null;
+  return {
+    title: state !== undefined && statusOf(state) === "partial" ? "揃えて有効化する" : "無期限で有効化する",
+    icon: Icon.Bolt,
+    running: "有効化しています…",
+    done: "有効化しました",
+    run: () => turnOn(duration),
+  };
 }
 
+// タイトルが操作を名乗る分、状態はこのバッジが受け持つ。
+//
+// 残り時間・期限・電源はあえて載せない。isShowingDetail で左が狭く、詰めると
+// 「残…」「...」と切れて読めなくなるうえ、どれも隣の詳細パネルにフルで出ている。
 function statusAccessories(state: KeepAwakeState | undefined): List.Item.Accessory[] {
-  if (state === undefined) {
-    return [];
+  return state === undefined ? [] : [statusTag(statusOf(state))];
+}
+
+function statusTag(status: Status): List.Item.Accessory {
+  switch (status) {
+    case "on":
+      return { tag: { value: "ON", color: Color.Green } };
+    case "partial":
+      return { tag: { value: "一部のみ ON", color: Color.Yellow } };
+    default:
+      return { tag: { value: "OFF", color: Color.SecondaryText } };
   }
-  const accessories: List.Item.Accessory[] = [];
-  const remaining = state.keeper?.remainingSeconds ?? null;
-  if (remaining !== null) {
-    accessories.push({ text: `${formatClock(deadline(remaining))} まで` });
-  }
-  if (!state.onACPower) {
-    accessories.push({
-      icon: { source: Icon.Battery, tintColor: Color.Yellow },
-      tooltip: "バッテリー駆動中。caffeinate -s は AC 電源時のみ効く",
-    });
-  }
-  return accessories;
 }
 
 function deadline(seconds: number): Date {
