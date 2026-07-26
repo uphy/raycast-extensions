@@ -1,0 +1,51 @@
+{
+  "$schema": "https://www.raycast.com/schemas/extension.json",
+  "name": "keep-awake",
+  "title": "Keep Awake",
+  "description": "Keep the Mac awake with the lid closed, indefinitely or for a fixed duration",
+  "icon": "extension-icon.png",
+  "author": "uphy",
+  "categories": [
+    "System"
+  ],
+  "license": "MIT",
+  "commands": [
+    {
+      "name": "keep-awake",
+      "title": "Keep Awake",
+      "description": "Show whether the Mac is being kept awake, and turn it on or off with an optional timer",
+      "mode": "view"
+    }
+  ],
+  "preferences": [
+    {
+      "name": "timerPresets",
+      "type": "textfield",
+      "required": false,
+      "title": "Timer Presets",
+      "description": "Durations offered when turning Keep Awake on. Comma-separated, m for minutes and h for hours.",
+      "default": "30m, 1h, 3h, 8h"
+    }
+  ],
+  "dependencies": {
+    "@raycast/api": "^1.104.23",
+    "@raycast/utils": "^2.2.7"
+  },
+  "devDependencies": {
+    "@raycast/eslint-config": "^2.2.0",
+    "@types/node": "22.19.17",
+    "@types/react": "19.0.10",
+    "eslint": "^10.8.0",
+    "prettier": "^3.3.3",
+    "typescript": "^5.4.5"
+  },
+  "scripts": {
+    "build": "ray build",
+    "dev": "ray develop",
+    "fix-lint": "ray lint --fix",
+    "lint": "ray lint",
+    "prepublishOnly": "echo \"\\n\\nIt seems like you are trying to publish the Raycast extension to npm.\\n\\nIf you did intend to publish it to npm, remove the \\`prepublishOnly\\` script and rerun \\`npm publish\\` again.\\nIf you wanted to publish it to the Raycast Store instead, use \\`npm run publish\\` instead.\\n\\n\" && exit 1",
+    "publish": "npx @raycast/api@latest publish",
+    "typecheck": "tsc --noEmit"
+  }
+}

@@ -20,6 +20,26 @@ Picking a repository opens it in Cursor, VS Code or IntelliJ IDEA, on its web pa
 
 Needs `ghq`, `git`, the CLI of whichever editor you use (`cursor`, `code`, `idea`), and `gh` for the pull request list. Raycast does not inherit a login shell's `PATH`, so set the extension's **PATH** preference to the directories those live in.
 
+### Keep Awake
+
+Keeps the Mac awake with the lid closed, indefinitely or until a timer runs out.
+
+| Command | Description |
+| --- | --- |
+| Keep Awake | Show whether the Mac is being kept awake, and turn it on or off with an optional timer |
+
+Two things have to hold for a closed lid not to sleep, and the command reports both: `pmset disablesleep` and a running `caffeinate -d -i -s`. If only one of them is up, it says so and offers to converge on the ON side — drifting to OFF would put the machine to sleep inside a closed lid.
+
+A timer is enforced by `caffeinate -t` itself, which then resets `disablesleep` as it exits. Nothing needs to be running for the deadline to hold: background refresh is only available to `no-view` and `menu-bar` commands, and macOS shifts its schedule on battery, so it cannot be trusted with a deadline.
+
+Needs passwordless `sudo` for the two `pmset` invocations. Set it up once with `sudo visudo -f /etc/sudoers.d/pmset-disablesleep`:
+
+```
+<username> ALL=(root) NOPASSWD: /usr/bin/pmset -a disablesleep 0, /usr/bin/pmset -a disablesleep 1
+```
+
+`caffeinate -s` only takes effect on AC power, so the command flags battery operation rather than pretending it worked. Timer presets are configurable through the **Timer Presets** preference.
+
 ### Obsidian Reminder
 
 Lists the reminders held by [obsidian-reminder-plugin](https://github.com/uphy/obsidian-reminder), grouped by due date: Overdue, Today, Tomorrow, In a week, In a month and Over 1 month. Read-only — it parses Obsidian's `obsidian.json` and the plugin's `data.json` and never writes to them.
@@ -51,6 +71,8 @@ mise run build     # build every extension = deploy it to Raycast
 ```
 
 **Building is deploying.** `ray build` defaults to `-e dev`, and that environment's output directory is `~/.config/raycast/extensions/`, so a successful build installs the extension. There is no "built but not deployed" state. Use `mise run build-dist` to verify a build without touching the app, and restart Raycast if a change does not show up.
+
+A brand-new extension is the one exception: `ray build` writes the bundle, but Raycast will not list it until `npm run dev` has run once and registered it. The registration outlives the dev process, so this is a one-time step — after that, building is enough.
 
 Each `extensions/<name>/` is a standalone npm project — there is no root `package.json` and this is not a workspace. `mise` tasks loop over all of them; scope a task with `EXTENSIONS="ghq" mise run lint`. To work on a single extension directly:
 
