@@ -1,1 +1,5 @@
 .DS_Store
+
+# Output of `mise run build-dist` (a throwaway build used to verify the
+# extension compiles; the real dev build goes to ~/.config/raycast/).
+.dist/

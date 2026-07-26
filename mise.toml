@@ -1,0 +1,37 @@
+# Cross-extension tasks. There is no root package.json and this is not an npm
+# workspace, so every repo-wide command has to loop over extensions/<name>/.
+# scripts/each-extension.sh owns that loop; the tasks below just name it.
+#
+# Scope a task to some extensions with EXTENSIONS:
+#   EXTENSIONS="ghq" mise run lint
+
+[tasks.install]
+description = "Install dependencies for every extension and enable the git hooks"
+run = [
+  "{{config_root}}/scripts/each-extension.sh --allow-missing-deps npm install",
+  "git -C {{config_root}} config core.hooksPath .githooks",
+]
+
+[tasks.lint]
+description = "Lint every extension (manifest validation + ESLint + Prettier)"
+run = "{{config_root}}/scripts/each-extension.sh npm run lint"
+
+[tasks.fix]
+description = "Auto-fix lint and formatting issues in every extension"
+run = "{{config_root}}/scripts/each-extension.sh npm run fix-lint"
+
+[tasks.typecheck]
+description = "Type-check every extension (`ray build -e dev` does not check types)"
+run = "{{config_root}}/scripts/each-extension.sh npm run typecheck"
+
+[tasks.build]
+description = "Build every extension = deploy it to the local Raycast app"
+run = "{{config_root}}/scripts/each-extension.sh npm run build"
+
+[tasks.build-dist]
+description = "Build every extension for distribution, without touching the local Raycast app"
+run = "{{config_root}}/scripts/each-extension.sh npx ray build -e dist -o .dist --non-interactive"
+
+[tasks.check]
+description = "lint + typecheck + distribution build (CI runs this, plus shellcheck)"
+depends = ["lint", "typecheck", "build-dist"]
