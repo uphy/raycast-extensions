@@ -66,7 +66,6 @@ function extractFilename(path: string): string {
 }
 
 export default function Command() {
-  const [items, setItems] = useState<ReminderListItem[]>([]);
   const [groups, setGroups] = useState<Group<ReminderListItem>[]>([]);
   const [showDetail, setShowDetail] = useState(false);
 

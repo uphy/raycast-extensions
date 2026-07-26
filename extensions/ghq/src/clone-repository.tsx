@@ -1,5 +1,4 @@
 import { Detail, LaunchProps } from "@raycast/api";
-import { RepositoryList } from "./components";
 import { useCommandRunner, usePreferences } from "./hooks";
 import { useEffect, useState } from "react";
 import { RepositoryView } from "./components/RepositoryView";

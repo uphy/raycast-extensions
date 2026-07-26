@@ -1,4 +1,4 @@
-import { Cache, clearSearchBar, closeMainWindow, getPreferenceValues } from "@raycast/api";
+import { clearSearchBar, closeMainWindow, getPreferenceValues } from "@raycast/api";
 import { runAppleScript } from "@raycast/utils";
 
 interface SlackOperatorPreferences {

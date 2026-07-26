@@ -67,7 +67,7 @@ export class CommandRunner {
       createdAt: string;
       url: string;
       body: string;
-      author: any;
+      author: PullRequest["author"];
     }[];
     return parsed.map((pr) => {
       return {

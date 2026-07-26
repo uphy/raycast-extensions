@@ -1,4 +1,4 @@
-import { Action, ActionPanel, Icon, List, useNavigation } from "@raycast/api";
+import { Action, ActionPanel, Icon, List } from "@raycast/api";
 import { CommandRunner, Repo } from "../model";
 import { RepositoryView } from "./RepositoryView";
 import { createDeeplink } from "@raycast/utils";

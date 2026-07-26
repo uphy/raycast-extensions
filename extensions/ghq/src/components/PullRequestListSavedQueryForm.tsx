@@ -1,7 +1,6 @@
 import { useForm } from "@raycast/utils";
 import { SavedQuery } from "../model";
 import { Action, ActionPanel, Form, useNavigation } from "@raycast/api";
-import { randomUUID } from "crypto";
 
 type FormValues = {
   query: string;
