@@ -1,5 +1,6 @@
 import { getPreferenceValues } from "@raycast/api";
-import { CommandRunner, directoryName, Repo } from "../model/command";
+import { CommandRunner, directoryName } from "../model/command";
+import { Repo } from "../model/types";
 import { useEffect, useMemo, useState } from "react";
 import { Preferences } from "../model/preferences";
 

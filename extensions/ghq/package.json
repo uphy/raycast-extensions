@@ -31,13 +31,13 @@
       "title": "Open Repository",
       "description": "Open the repository",
       "mode": "view",
-      "preferences": [
+      "arguments": [
         {
           "name": "path",
           "description": "Path to the repository directory",
-          "type": "textfield",
-          "required": false,
-          "title": "Path"
+          "type": "text",
+          "required": true,
+          "placeholder": "e.g. /Users/me/ghq/github.com/owner/repo"
         }
       ]
     },
