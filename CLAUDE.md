@@ -119,6 +119,15 @@ vault（`~/dev/notes`、別リポジトリ）のタスクシステムを読む�
 
 **完全 read-only**。vault はタスクの状態変更を単一 writer（`task-manager` subagent）に集約しているので、ここから status も順序も書かない。その帰結として、日付をまたぐと索引の `today.base_date` が前日のままになる（候補は基準日を引数に計算済みのため）。両 view と menu bar はそれを検出して「索引が古い」と出す。
 
+**タスクの開始・終了は herdr に投げる**（`src/model/herdr.ts`）。read-only の縛りは「自分で書かない」であって「変更を起こさない」ではないので、状態を変えたいときは vault 側の窓口に頼む。`⌘⇧↵` で herdr にタブを立て、vault を cwd にエージェントを起動し、`/task-manage run <タスク名>` を送る（`⌘⇧X` は `close`）。書くのは vault 側の唯一の writer のままで、この extension は依頼するだけ。
+
+herdr CLI は socket API（`~/.config/herdr/herdr.sock`）の薄いフロントで、どのサブコマンドも1行の JSON を返す。**成功の `{id,result}` は stdout、失敗の `{id,error}` は stderr**（＋ exit 1）で、出口が違う。シェルで `2>&1` して確かめると同じに見えるので気付きにくい。実測で分かった制約が 3 つある。
+
+- **タブは cwd に vault を使う一択**。索引はタスクの project は持つがコードのリポジトリは持たない。ここで project→パスの対応を持つと vault の外に第二の真実ができるので持たない。タブを作る先の workspace は preference `herdrWorkspace`（無ければ vault を cwd にして作る）
+- **agent 名は `^[a-z][a-z0-9_-]{1,32}$` しか通らない**ので、日本語のタスク名は入らない。pane id（`wK:p4`）から機械的に作っている。逆に tab の label は日本語が通るので、タスク名はそちらに出す。`agent prompt` の宛先も名前ではなく pane id を使う（同じタスクのタブが並んでも取り違えない）
+- **`tab create` の直後に `agent start` を投げると `agent_pane_busy` で弾かれる**。タブはできているが shell がまだプロンプトに達していない。`agent start --timeout` はエージェント検出の待ちで、この shell 待ちには効かない。250ms 間隔で叩き直して待つ（実測では 1 回で通る）
+- **環境変数には依存しない**（実測: `env -i PATH=/usr/bin:/bin herdr workspace list` が通る）。ただし Raycast はログインシェルの PATH を継承せず、後から足した preference の既定値も既存インストールには効かないことがあるので、`execFile` の PATH 解決には任せず `/opt/homebrew/bin` 等を自分で走査して絶対パスで起動する
+
 `schema_version` が 2リポジトリ間の契約。`tasklib.INDEX_SCHEMA_VERSION` と `src/model/index-file.ts` の `SUPPORTED_SCHEMA_VERSION` を対で上げる。
 
 **menu-bar の横幅**: 日本語のタスク名をタイトルに出すと menu bar を大きく占有するので、既定は `title` 無し＝アイコンのみ。`tintColor` は menu bar でもそのまま効く（実測: `Icon.Circle` が指定色のリングとして描かれる）ので、状態は形ではなく色に載せている（超過=赤・索引が古い=紫・候補なし=緑・それ以外=1位のpriority色）。名前と件数は tooltip とプルダウンが持つ。表示量は command preference `menuBarDisplay` で切り替えられる。
