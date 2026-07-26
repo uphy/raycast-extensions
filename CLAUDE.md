@@ -7,6 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Raycast extension を複数ぶら下げただけの薄いリポジトリ。ルートに package.json はなく、**workspace でもない**。`extensions/<name>/` の各ディレクトリが独立した npm プロジェクトで、依存も lockfile も個別に持つ。
 
 - `extensions/ghq` — ghq 管理下のリポジトリ検索・clone・エディタ/ブラウザで開く・`gh` 経由の PR 一覧
+- `extensions/keep-awake` — 蓋を閉じてもスリープさせない状態の確認と切り替え（タイマー付き）
 - `extensions/obsidian-reminder` — obsidian-reminder-plugin の `data.json` を読んでリマインダ一覧を表示
 - `extensions/slack-operator` — AppleScript で Slack にキーストロークを送る（未読・スレッド・チャンネル切替）
 
@@ -27,6 +28,8 @@ mise run build-dist  # 配布ビルド。型検査あり、Raycast アプリに�
 `EXTENSIONS="ghq slack-operator" mise run lint` で対象を絞れる。extension 単体を触るときは従来どおり `cd` して `npm run dev` / `npm run build` / `npm run lint` / `npm run typecheck`。
 
 **ビルド = ローカル Raycast へのデプロイ**。`ray build` は既定で `-e dev` として動き、出力先が `~/.config/raycast/extensions/<name>/` なので、ビルドした時点で Raycast アプリにインストールされる。「ビルドはしたがデプロイはしていない」という状態は存在しない。反映されないときは Raycast の再起動を試す。Raycast を汚さずにビルドを検証したいときは `-e dist`（= `mise run build-dist`、出力先は各 extension の `.dist/`）を使う。
+
+ただし**新規に作った extension は `ray build` だけでは Raycast に現れない**。`ray build` はバンドルを書くだけで、Raycast に取り込ませるのは `ray develop`（= `npm run dev`）の役目。一度走らせると `~/Library/Application Support/com.raycast.macos/extensions/<name>/` が作られ、そこで初めてコマンドが検索に出る。この登録は dev を止めても残るので、初回だけ実行すればよく、以降の更新は `ray build` で足りる。extension を作ったのに見つからないときは、まずこれを疑う。
 
 `raycast-env.d.ts` は package.json の manifest から `ray` が自動生成する。手で編集しない。gitignore 済みだが ghq には commit 済みのものが残っている。
 
