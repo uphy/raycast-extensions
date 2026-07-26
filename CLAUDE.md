@@ -42,7 +42,13 @@ mise run build-dist  # 配布ビルド。型検査あり、Raycast アプリに�
 
 - **pre-commit hook** (`.githooks/pre-commit`) — staged な変更のある extension だけ Prettier・ESLint・tsc を実行する。3 つとも最後まで走らせて結果をまとめて報告する。`ray lint` はネットワーク必須でオフライン時に commit を止めてしまうため、ここには入れず CI に任せている。`git config core.hooksPath .githooks` で有効になり、`mise run install` がその設定をする
 - **Stop hook** (`.claude/hooks/build-changed.sh`) — 応答終了時に `extensions/` 配下に未コミットの変更がある extension を自動でビルドする。手動でビルドしなくてもデプロイ済みの状態は保たれるが、ビルドが失敗した場合は exit 2 でエラーが差し戻される
-- **CI** (`.github/workflows/ci.yml`) — push / PR で shellcheck と `mise run check`。shellcheck は SC2016（メッセージ中のバッククォート）を避けるため `--severity=warning` で回している
+- **CI** (`.github/workflows/ci.yml`) — push / PR で shellcheck と `mise run check`。shellcheck は SC2016（メッセージ中のバッククォート）を避けるため `--severity=warning` で回している。action は pinact で commit SHA に固定してあるので、バージョンを上げたら `pinact run` を掛け直す
+
+## 依存
+
+`npm audit` は 3 extension とも 11 件（high 10・low 1）を報告するが、すべて `@raycast/api` の依存ツリー内（oclif / ejs / jake / esbuild）で、`@raycast/api` を最新にしても消えない。`npm audit fix --force` は `@raycast/api` を 1.104.9 に **ダウングレード** して「解消」するので実行しない。上流の更新を待つ。
+
+`@raycast/api` の peerDependencies が `@types/react` と `@types/node` のバージョンを厳密に指定している（1.104 系では 19.0.10 / 22.19.17）。ここがずれると Raycast のコンポーネントが軒並み TS2786「cannot be used as a JSX component」で落ちるので、`@raycast/api` を上げるときは peer の指定に合わせる。
 
 ## アーキテクチャ
 
@@ -86,7 +92,7 @@ Obsidian の設定ファイル 2 段を読むだけで、書き込みは一切�
 
 ## コーディング規約
 
-`@raycast/eslint-config` と prettier（`printWidth: 120`, double quote）に従う。TypeScript は `strict: true`。`.eslintrc.json` / `.prettierrc` / `tsconfig.json` は各 extension で複製されているので、規約を変えるなら 3 箇所すべてを揃える。
+`@raycast/eslint-config`（2 系。flat config なので設定は `eslint.config.js`）と prettier（`printWidth: 120`, double quote）に従う。TypeScript は `strict: true`。`eslint.config.js` / `.prettierrc` / `tsconfig.json` は各 extension で複製されているので、規約を変えるなら 3 箇所すべてを揃える。
 
 VSCode は保存時フォーマット＋ESLint の自動修正が有効で、フォーマッタは `esbenp.prettier-vscode` を指定してある（`.vscode/settings.json`）。この拡張が入っていないと保存時に TypeScript 既定のフォーマッタが動いて `.prettierrc` を無視するので、推奨拡張は入れておく。エディタ非依存の最低限（インデント・改行・文字コード）はルートの `.editorconfig` が持つ。
 
