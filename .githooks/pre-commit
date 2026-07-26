@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# Check every extension that has staged changes before letting the commit land.
+#
+# Only the offline checks run here -- ESLint, Prettier and tsc. Full manifest
+# validation (`ray lint`) resolves the `author` field against the Raycast Store
+# API, so putting it in a hook would block commits whenever the network is
+# down; CI covers that instead.
+#
+# Note this inspects the working tree, not the staged content, so a partially
+# staged file is checked in full. Enabled by `git config core.hooksPath
+# .githooks`, which `mise run install` does for you.
+set -uo pipefail
+
+cd "$(git rev-parse --show-toplevel)" || exit 1
+
+exts=$(git diff --cached --name-only --diff-filter=ACMR -- extensions | cut -d/ -f2 | sort -u)
+[ -n "$exts" ] || exit 0
+
+rc=0
+for ext in $exts; do
+  dir="extensions/$ext"
+  [ -f "$dir/package.json" ] || continue
+  if [ ! -d "$dir/node_modules" ]; then
+    printf 'pre-commit: %s has no node_modules, skipping (run `mise run install`)\n' "$ext" >&2
+    continue
+  fi
+  printf 'pre-commit: checking %s\n' "$ext"
+  # Every check runs even after one fails, so a single commit attempt reports
+  # everything that needs fixing.
+  (
+    cd "$dir" || exit 1
+    r=0
+    npx prettier --check src || r=1
+    npx eslint src || r=1
+    npx tsc --noEmit || r=1
+    exit $r
+  ) || rc=1
+done
+
+[ $rc -eq 0 ] || printf '\npre-commit failed. Run `mise run fix`, or commit with --no-verify to bypass.\n' >&2
+exit $rc
