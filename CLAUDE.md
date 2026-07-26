@@ -53,6 +53,20 @@ mise run build-dist  # 配布ビルド。型検査あり、Raycast アプリに�
 
 `@raycast/api` の peerDependencies が `@types/react` と `@types/node` のバージョンを厳密に指定している（1.104 系では 19.0.10 / 22.19.17）。ここがずれると Raycast のコンポーネントが軒並み TS2786「cannot be used as a JSX component」で落ちるので、`@raycast/api` を上げるときは peer の指定に合わせる。
 
+## API の調べ方
+
+`@raycast/api` は記憶で書くと存在しない prop や hook を捏造しやすい。**書く前に必ず裏を取る**。優先順位は次の 3 段。
+
+1. **型定義が一次情報** — `extensions/<name>/node_modules/@raycast/api/types/index.d.ts` の 1 ファイル（8000 行超）に全 API が TSDoc の用例つきで入っている。インストール済みバージョンと完全に一致するので Web ドキュメントより信頼できる。大きいので読み込まず `grep -n "namespace Tool" <path>` のように引く。`@raycast/utils` は `node_modules/@raycast/utils/dist/*.d.ts` が hook ごとに分かれている
+2. **概念・手順は公式ドキュメント** — manifest のスキーマ、lifecycle、Store 審査など「型からは読めない why」はこちら。全ページが `.md` を返すので必要な 1 ページだけ取れる（例: <https://developers.raycast.com/api-reference/user-interface/list.md>）。索引は <https://developers.raycast.com/llms.txt>（11KB、丸ごと読める）。全文は <https://developers.raycast.com/llms-full.txt> だが 916KB・約 23 万トークンあるので**文脈には載せない**。横断検索したいときだけ落として grep する
+3. **質問もできる** — ページ URL に `?ask=<自然言語の質問>` を付けると GitBook が回答を返す（例: `curl "https://developers.raycast.com/api-reference/tool.md?ask=How+do+I+..."`）。ただし生成された回答なので、出てきた識別子は 1 の型定義で裏を取る
+
+バージョンが動くもの、特に `AI.Model` の enum 値（型定義に `__DeprecatedModelUnion` が残っているほど入れ替わりが激しい）は記憶から書かない。
+
+### 使わない API
+
+Raycast Pro の契約がないため **AI 系 API は動かない**。`AI.ask` / `useAI` と AI Extension の一式（`tools/` ディレクトリ、manifest の `ai` / `tools` セクション、`ray evals`）は実装も提案もしない。LLM に投げたくなる処理が出てきたら、通常のコマンドと外部 CLI の組み合わせで設計する。
+
 ## アーキテクチャ
 
 ### コマンド定義と実装の対応
