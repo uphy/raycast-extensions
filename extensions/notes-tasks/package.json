@@ -62,6 +62,44 @@
       "title": "Vault Path",
       "description": "Path to the Obsidian vault holding tasks/. The index is read from tasks/_scripts/.index.json inside it.",
       "default": "~/dev/notes"
+    },
+    {
+      "name": "herdrWorkspace",
+      "type": "textfield",
+      "required": false,
+      "title": "Herdr Workspace",
+      "description": "Label of the herdr workspace where task tabs are created. Created with the vault as its working directory if it does not exist yet.",
+      "default": "obsidian-layerx"
+    },
+    {
+      "name": "herdrAgentKind",
+      "type": "dropdown",
+      "required": false,
+      "title": "Herdr Agent",
+      "description": "Agent started in the new tab. It receives /task-manage, so it has to be able to run the vault's skills.",
+      "default": "claude",
+      "data": [
+        {
+          "title": "Claude Code",
+          "value": "claude"
+        },
+        {
+          "title": "Codex",
+          "value": "codex"
+        },
+        {
+          "title": "Gemini",
+          "value": "gemini"
+        }
+      ]
+    },
+    {
+      "name": "pathEnv",
+      "type": "textfield",
+      "required": false,
+      "title": "Path",
+      "description": "Directories appended to PATH so that herdr can be found. Raycast does not inherit the login shell PATH.",
+      "default": "/opt/homebrew/bin:/usr/local/bin"
     }
   ],
   "dependencies": {

@@ -1,40 +1,95 @@
-import { Action, ActionPanel, Color, Icon, Keyboard, List } from "@raycast/api";
+import { Action, ActionPanel, Color, Icon, Keyboard, List, showToast, Toast } from "@raycast/api";
+import { showFailureToast } from "@raycast/utils";
 import {
   absolutePath,
+  ACTION_LABEL,
   Candidate,
+  dispatchTask,
   LoadedIndex,
   periodLabel,
   priorityColor,
   progressOf,
   statusLabel,
   Task,
+  TaskAction,
   taskMarkdown,
   tierLabel,
 } from "../model";
 
-/** タスク1件に対する操作。read-only なので「開く」と「コピー」しかない。 */
+/**
+ * タスク1件に対する操作。「開く」「herdr に渡す」「コピー」の3段で、
+ * よく使う順に並べる（herdr は開く操作の次、コピーは最後）。
+ */
 export function TaskActions(props: { data: LoadedIndex; task: Task }) {
   const { data, task } = props;
   const path = absolutePath(data.index, task);
   return (
-    <ActionPanel.Section title={task.title}>
-      <Action.Open title="Obsidianで開く" target={task.obsidian_uri} icon={Icon.Document} />
-      {task.notion_url ? <Action.OpenInBrowser title="Notionで開く" url={task.notion_url} icon={Icon.Globe} /> : null}
-      <Action.CopyToClipboard
-        title="Wikilinkをコピー"
-        content={task.wikilink}
-        shortcut={Keyboard.Shortcut.Common.Copy}
+    <>
+      <ActionPanel.Section title={task.title}>
+        <Action.Open title="Obsidianで開く" target={task.obsidian_uri} icon={Icon.Document} />
+        {task.notion_url ? <Action.OpenInBrowser title="Notionで開く" url={task.notion_url} icon={Icon.Globe} /> : null}
+      </ActionPanel.Section>
+
+      <HerdrActions task={task} />
+
+      <ActionPanel.Section>
+        <Action.CopyToClipboard
+          title="Wikilinkをコピー"
+          content={task.wikilink}
+          shortcut={Keyboard.Shortcut.Common.Copy}
+        />
+        <Action.CopyToClipboard
+          title="タスク名をコピー"
+          content={task.title}
+          shortcut={Keyboard.Shortcut.Common.CopyName}
+        />
+        <Action.CopyToClipboard title="パスをコピー" content={path} shortcut={Keyboard.Shortcut.Common.CopyPath} />
+        <Action.ShowInFinder path={path} />
+        <Action.OpenWith path={path} shortcut={Keyboard.Shortcut.Common.OpenWith} />
+      </ActionPanel.Section>
+    </>
+  );
+}
+
+/**
+ * herdr にタスク用のタブを立てて作業を始める / 終える。ここでも vault は書かず、
+ * 立てたエージェントに `/task-manage` を投げて vault 側の唯一の writer に委ねる。
+ */
+function HerdrActions(props: { task: Task }) {
+  const { task } = props;
+  return (
+    <ActionPanel.Section title="Herdr">
+      <Action
+        title="Herdrでタスクを開始"
+        icon={Icon.Terminal}
+        shortcut={{ modifiers: ["cmd", "shift"], key: "return" }}
+        onAction={() => dispatch(task, "run")}
       />
-      <Action.CopyToClipboard
-        title="タスク名をコピー"
-        content={task.title}
-        shortcut={Keyboard.Shortcut.Common.CopyName}
+      <Action
+        title="Herdrでタスクを終了"
+        icon={Icon.CheckCircle}
+        shortcut={{ modifiers: ["cmd", "shift"], key: "x" }}
+        onAction={() => dispatch(task, "close")}
       />
-      <Action.CopyToClipboard title="パスをコピー" content={path} shortcut={Keyboard.Shortcut.Common.CopyPath} />
-      <Action.ShowInFinder path={path} />
-      <Action.OpenWith path={path} shortcut={Keyboard.Shortcut.Common.OpenWith} />
     </ActionPanel.Section>
   );
+}
+
+async function dispatch(task: Task, action: TaskAction) {
+  const label = ACTION_LABEL[action];
+  const toast = await showToast({
+    style: Toast.Style.Animated,
+    title: `Herdr でタスクを${label}しています`,
+    message: task.title,
+  });
+  try {
+    const session = await dispatchTask(task, action);
+    toast.style = Toast.Style.Success;
+    toast.title = `Herdr に${label}を指示しました`;
+    toast.message = `${session.workspaceLabel} / ${session.tabId}・${session.prompt}`;
+  } catch (error) {
+    await showFailureToast(error, { title: `Herdr でタスクを${label}できません` });
+  }
 }
 
 /** タスク本文＋属性。本文は索引が `## 見出し` 単位で持っているので繋ぐだけ。 */
