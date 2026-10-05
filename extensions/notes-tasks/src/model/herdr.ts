@@ -1,9 +1,8 @@
 import { getPreferenceValues } from "@raycast/api";
 import { execFile } from "child_process";
-import { access, constants } from "fs/promises";
-import { join } from "path";
 import { promisify } from "util";
 import { Task, vaultPath } from "./index-file";
+import { BinaryNotFoundError, environment, resolveBinary } from "./process";
 
 // herdr（AIコーディングエージェント向けの terminal workspace manager）へタスクを渡す層。
 //
@@ -14,15 +13,13 @@ import { Task, vaultPath } from "./index-file";
 //
 // **この extension は vault を書かないという方針をここでも守る**。タスクの状態変更は索引にも
 // タスクファイルにも書かず、新しいタブで起動したエージェントに `/task-manage` を投げて、vault 側の
-// 唯一の writer（`task-manager` subagent）に委ねる。ここが持つのは「どこに」「何を」投げるかだけ。
+// 唯一の書き換え経路（`task-manage` skill の items モード）に委ねる。ここが持つのは
+// 「どこに」「何を」投げるかだけ。
 
 const execFileAsync = promisify(execFile);
 
 /** agent 起動が対話プロンプトに到達するまでの待ち時間。CLI 側の上限は 300000。 */
 const AGENT_START_TIMEOUT_MS = 60000;
-
-/** 設定が空でも見に行く場所。Homebrew の既定（Apple silicon / Intel）。 */
-const FALLBACK_PATH_ENV = "/opt/homebrew/bin:/usr/local/bin";
 
 /**
  * 作ったばかりのタブは shell がまだプロンプトに達しておらず、`agent start` が
@@ -35,7 +32,6 @@ const SHELL_READY_TIMEOUT_MS = 10000;
 type Preferences = {
   herdrWorkspace?: string;
   herdrAgentKind?: string;
-  pathEnv?: string;
 };
 
 /** タスクに対して投げる `/task-manage` の subcommand。 */
@@ -50,6 +46,32 @@ export const ACTION_LABEL: Record<TaskAction, string> = {
   run: "開始",
   close: "終了",
 };
+
+/**
+ * タスクを指さない `/task-manage` のモード。subcommand の綴りは vault 側の
+ * `.claude/skills/task-manage/SKILL.md` の Subcommands 表が正典（`plan` / `routine` / `wrap` /
+ * `list`。`planning` や `query` ではない）。
+ */
+export type ManageMode = "plan" | "routine" | "wrap" | "list";
+
+export const MANAGE_MODE: Record<ManageMode, { label: string; prompt: string }> = {
+  plan: { label: "朝の計画", prompt: "/task-manage plan" },
+  routine: { label: "日次ルーチン", prompt: "/task-manage routine" },
+  wrap: { label: "セッション終了", prompt: "/task-manage wrap" },
+  list: { label: "棚卸し", prompt: "/task-manage list" },
+};
+
+/** 新規タスクの追加は items モードの `add`（`create` という subcommand は無い）。 */
+export function createTaskPrompt(title: string, project?: string, memo?: string): string {
+  const lines = [`/task-manage add ${title.trim()}`];
+  if (project?.trim()) {
+    lines.push(`project: ${project.trim()}`);
+  }
+  if (memo?.trim()) {
+    lines.push(memo.trim());
+  }
+  return lines.join("\n");
+}
 
 export type DispatchedSession = {
   tabId: string;
@@ -81,27 +103,42 @@ export class HerdrError extends Error {
 /**
  * タスク用のタブを立て、エージェントを起動して `/task-manage` を投げる。
  * cwd は常に vault（タスクシステムの skill がそこにあるため）。
+ *
+ * `note` を渡すと prompt の末尾に改行して添える。着手の合図と一緒に「今日はここまで」のような
+ * 前置きを渡せるようにするためで、vault を書かないという方針は変わらない（依頼文が増えるだけ）。
  */
-export async function dispatchTask(task: Task, action: TaskAction): Promise<DispatchedSession> {
+export async function dispatchTask(task: Task, action: TaskAction, note?: string): Promise<DispatchedSession> {
+  const prompt = PROMPT[action](task) + (note?.trim() ? `\n${note.trim()}` : "");
+  return dispatchPrompt(task.title, prompt);
+}
+
+/**
+ * タブを立ててエージェントを起動し、任意の prompt を投げる。タスクに紐付かない
+ * `/task-manage plan` のようなモード起動もここを通る。`label` はタブの見出し（日本語可）。
+ */
+export async function dispatchPrompt(label: string, prompt: string): Promise<DispatchedSession> {
   const { herdrWorkspace, herdrAgentKind } = getPreferenceValues<Preferences>();
   const workspaceLabel = herdrWorkspace?.trim() || "obsidian-layerx";
   const agentKind = herdrAgentKind?.trim() || "claude";
   const cwd = vaultPath();
 
-  const workspaceId = await resolveWorkspace(workspaceLabel, cwd);
-  const created = await herdr<TabCreated>([
-    "tab",
-    "create",
-    "--workspace",
-    workspaceId,
-    "--cwd",
-    cwd,
-    "--label",
-    task.title,
-    "--focus",
-  ]);
+  // workspace を新しく作ると空のタブ「1」が一緒にできる。その上に tab create すると
+  // 空タブが残るので、作った直後はその初期タブを名前だけ付け替えて使う。
+  const resolved = await resolveWorkspace(workspaceLabel, cwd);
+  const created = resolved.initialTab
+    ? await renameTab(resolved.initialTab, label)
+    : await herdr<TabCreated>([
+        "tab",
+        "create",
+        "--workspace",
+        resolved.workspaceId,
+        "--cwd",
+        cwd,
+        "--label",
+        label,
+        "--focus",
+      ]);
   const { pane_id: paneId } = created.root_pane;
-  const prompt = PROMPT[action](task);
 
   try {
     await startAgent(paneId, agentKind);
@@ -145,22 +182,38 @@ async function startAgent(paneId: string, agentKind: string): Promise<void> {
 }
 
 /** label で workspace を引き、無ければ vault を cwd にして作る。 */
-async function resolveWorkspace(label: string, cwd: string): Promise<string> {
+type ResolvedWorkspace = {
+  workspaceId: string;
+  /** いま作ったばかりの workspace に付いてきた初期タブ。既存 workspace なら無い。 */
+  initialTab?: TabCreated;
+};
+
+async function resolveWorkspace(label: string, cwd: string): Promise<ResolvedWorkspace> {
   const { workspaces } = await herdr<{ workspaces: Workspace[] }>(["workspace", "list"]);
   const found = workspaces.find((workspace) => workspace.label === label);
   if (found) {
-    return found.workspace_id;
+    return { workspaceId: found.workspace_id };
   }
-  const created = await herdr<{ workspace: Workspace }>([
+  const created = await herdr<TabCreated & { workspace: Workspace }>([
     "workspace",
     "create",
     "--cwd",
     cwd,
     "--label",
     label,
-    "--no-focus",
+    "--focus",
   ]);
-  return created.workspace.workspace_id;
+  return {
+    workspaceId: created.workspace.workspace_id,
+    initialTab: { tab: created.tab, root_pane: created.root_pane },
+  };
+}
+
+/** 初期タブ「1」にタスク名を付ける。戻り値は tab create と同じ形に揃える。 */
+async function renameTab(initial: TabCreated, label: string): Promise<TabCreated> {
+  const { tab } = await herdr<{ tab: TabCreated["tab"] }>(["tab", "rename", initial.tab.tab_id, label]);
+  await herdr(["tab", "focus", tab.tab_id]).catch(() => undefined);
+  return { tab, root_pane: initial.root_pane };
 }
 
 /**
@@ -189,38 +242,16 @@ async function herdr<T = unknown>(args: string[]): Promise<T> {
   return parse<T>(stdout);
 }
 
-let cachedBinary: string | undefined;
-
-/**
- * herdr の実行ファイルを絶対パスで解決する。`execFile` の PATH 解決に任せず自分で探すのは、
- * Raycast がログインシェルの PATH を継承しないうえに、設定の既定値も既存インストールには
- * 後から効かないことがあるため。どこを探したかはエラーに載せる。
- */
+/** herdr の実行ファイル。PATH の自前解決は `process.ts` が持つ。 */
 async function binary(): Promise<string> {
-  if (cachedBinary) {
-    return cachedBinary;
-  }
-  const directories = searchDirectories();
-  for (const directory of directories) {
-    const candidate = join(directory, "herdr");
-    try {
-      await access(candidate, constants.X_OK);
-      cachedBinary = candidate;
-      return candidate;
-    } catch {
-      // 次の候補へ
+  try {
+    return await resolveBinary("herdr");
+  } catch (error) {
+    if (error instanceof BinaryNotFoundError) {
+      throw new HerdrError(error.message, "ENOENT");
     }
+    throw error;
   }
-  throw new HerdrError(`herdr が見つかりません（探した場所: ${directories.join(", ")}）`, "ENOENT");
-}
-
-function searchDirectories(): string[] {
-  const { pathEnv } = getPreferenceValues<Preferences>();
-  const directories = [pathEnv, FALLBACK_PATH_ENV, process.env.PATH]
-    .flatMap((value) => (value ?? "").split(":"))
-    .map((directory) => directory.trim())
-    .filter((directory) => directory.length > 0);
-  return [...new Set(directories)];
 }
 
 function parse<T>(stdout: string): T {
@@ -234,17 +265,4 @@ function parse<T>(stdout: string): T {
     throw new HerdrError(envelope.error.message, envelope.error.code);
   }
   return envelope.result;
-}
-
-/**
- * herdr 自体は環境変数に依存しないが、Raycast が注入する NODE_PATH / NODE_ENV は
- * 子プロセスの Node ツールチェインを壊すので落とす（ghq の `CommandRunner` と同じ理由）。
- */
-function environment(): NodeJS.ProcessEnv {
-  return {
-    ...process.env,
-    PATH: searchDirectories().join(":"),
-    NODE_PATH: undefined,
-    NODE_ENV: undefined,
-  };
 }

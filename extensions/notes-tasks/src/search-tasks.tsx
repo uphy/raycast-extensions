@@ -1,37 +1,69 @@
 import { Action, ActionPanel, Color, Icon, List } from "@raycast/api";
 import { usePromise } from "@raycast/utils";
-import { useState } from "react";
-import { IndexUnavailable, StaleNotice } from "./components/index-state";
+import { useMemo, useState } from "react";
+import { IndexUnavailable, RegenerateAction, StaleNotice } from "./components/index-state";
 import { TaskActions, TaskDetail } from "./components/task";
-import { LoadedIndex, loadIndex, priorityColor, progressOf, shortDate, statusIcon, Task } from "./model";
+import {
+  LoadedIndex,
+  loadIndex,
+  matchesQuery,
+  priorityColor,
+  progressOf,
+  searchHaystack,
+  shortDate,
+  statusIcon,
+  Task,
+} from "./model";
 
 // 索引は木の順序で並んでいるので、そのまま出せば `_タスク.md` と同じ並びになる。
 // 絞り込みの軸は dropdown 1つに寄せた（project / status / バックログ）。
+//
+// 検索は Raycast 標準の絞り込みではなく自前でやる。本文（preamble と各 section）まで
+// 引っかけたいが、それを `keywords` に丸ごと載せると 100 件超のタスク × 数千文字を毎回
+// Raycast へ渡すことになるため。`filtering={false}` にして `onSearchTextChange` で受ける。
 const BACKLOG = "filter:backlog";
 const ACTIVE = "filter:active";
 const BLOCKING = "filter:blocking";
 
 export default function Command() {
-  const { data, isLoading } = usePromise(loadIndex);
+  const { data, isLoading, revalidate } = usePromise(loadIndex);
   const [filter, setFilter] = useState<string>(ACTIVE);
+  const [query, setQuery] = useState<string>("");
   const [showingDetail, setShowingDetail] = useState(false);
+
+  // 本文を含む突合文字列は索引1回につき1度だけ組み立てる。
+  const haystacks = useMemo(() => {
+    const map = new Map<string, string>();
+    if (data?.ok) {
+      for (const task of data.index.tasks) {
+        map.set(task.key, searchHaystack(task));
+      }
+    }
+    return map;
+  }, [data]);
 
   if (data && !data.ok) {
     return (
       <List>
-        <IndexUnavailable load={data} />
+        <IndexUnavailable load={data} onRegenerated={revalidate} />
       </List>
     );
   }
 
-  const tasks = data ? data.index.tasks.filter((task) => matches(task, filter)) : [];
+  const tasks = data
+    ? data.index.tasks.filter(
+        (task) => matches(task, filter) && matchesQuery(haystacks.get(task.key) ?? task.title.toLowerCase(), query),
+      )
+    : [];
 
   return (
     <List
       isLoading={isLoading}
       isShowingDetail={showingDetail}
-      searchBarPlaceholder="タスク名・project で絞り込む"
-      navigationTitle={data ? `work items ${data.index.tasks.length}件` : undefined}
+      filtering={false}
+      onSearchTextChange={setQuery}
+      searchBarPlaceholder="タスク名・project・本文で絞り込む"
+      navigationTitle={data ? `work items ${tasks.length} / ${data.index.tasks.length}件` : undefined}
       searchBarAccessory={
         data ? (
           <List.Dropdown tooltip="絞り込み" value={filter} onChange={setFilter}>
@@ -54,7 +86,7 @@ export default function Command() {
         ) : null
       }
     >
-      {data ? <StaleNotice data={data} /> : null}
+      {data ? <StaleNotice data={data} onRegenerated={revalidate} /> : null}
       {data
         ? tasks.map((task) => (
             <TaskListItem
@@ -63,6 +95,7 @@ export default function Command() {
               task={task}
               showingDetail={showingDetail}
               onToggleDetail={() => setShowingDetail((current) => !current)}
+              onRegenerated={revalidate}
             />
           ))
         : null}
@@ -87,8 +120,14 @@ function matches(task: Task, filter: string): boolean {
   return task.project === filter;
 }
 
-function TaskListItem(props: { data: LoadedIndex; task: Task; showingDetail: boolean; onToggleDetail: () => void }) {
-  const { data, task, showingDetail, onToggleDetail } = props;
+function TaskListItem(props: {
+  data: LoadedIndex;
+  task: Task;
+  showingDetail: boolean;
+  onToggleDetail: () => void;
+  onRegenerated: () => void;
+}) {
+  const { data, task, showingDetail, onToggleDetail, onRegenerated } = props;
   const progress = progressOf(task);
   const accessories: List.Item.Accessory[] = [];
 
@@ -102,7 +141,7 @@ function TaskListItem(props: { data: LoadedIndex; task: Task; showingDetail: boo
   if (task.depends_on.length > 0) {
     accessories.push({
       icon: { source: Icon.MinusCircle, tintColor: Color.Orange },
-      tooltip: `依存先: ${task.depends_on.map((key) => data.byKey.get(key)?.title ?? key).join("／")}`,
+      tooltip: `依存元: ${task.depends_on.map((key) => data.byKey.get(key)?.title ?? key).join("／")}`,
     });
   }
   if (progress && progress.total > 0) {
@@ -120,7 +159,6 @@ function TaskListItem(props: { data: LoadedIndex; task: Task; showingDetail: boo
       icon={statusIcon(task.status)}
       title={task.title}
       subtitle={task.project ?? undefined}
-      keywords={[task.project ?? "", task.assignee ?? "backlog", task.status ?? ""]}
       accessories={showingDetail ? undefined : accessories}
       detail={<TaskDetail data={data} task={task} />}
       actions={
@@ -133,6 +171,7 @@ function TaskListItem(props: { data: LoadedIndex; task: Task; showingDetail: boo
               shortcut={{ modifiers: ["cmd", "shift"], key: "d" }}
               onAction={onToggleDetail}
             />
+            <RegenerateAction onRegenerated={onRegenerated} />
           </ActionPanel.Section>
         </ActionPanel>
       }

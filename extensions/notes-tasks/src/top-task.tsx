@@ -7,12 +7,15 @@ import {
   LaunchType,
   MenuBarExtra,
   open,
+  showHUD,
 } from "@raycast/api";
 import { usePromise } from "@raycast/utils";
+import { regenerateFromMenuBar } from "./components/index-state";
 import {
   Candidate,
   LoadedIndex,
   loadIndex,
+  openTaskView,
   priorityColor,
   REGENERATE_COMMAND,
   shortDate,
@@ -29,13 +32,18 @@ const TITLE_MAX = 20;
 const MENU_ITEMS = 5;
 
 export default function Command() {
-  const { data, isLoading } = usePromise(loadIndex);
+  const { data, isLoading, revalidate } = usePromise(loadIndex);
   const display = (getPreferenceValues<{ menuBarDisplay?: Display }>().menuBarDisplay ?? "icon") as Display;
 
   if (!data || !data.ok) {
     return (
       <MenuBarExtra icon={{ source: Icon.Warning, tintColor: Color.Orange }} isLoading={isLoading}>
         <MenuBarExtra.Item title="索引を読み込めません" />
+        <MenuBarExtra.Item
+          title="索引を再生成"
+          icon={Icon.ArrowClockwise}
+          onAction={() => regenerateFromMenuBar(revalidate)}
+        />
         <MenuBarExtra.Item
           title="再生成コマンドをコピー"
           icon={Icon.Clipboard}
@@ -61,7 +69,13 @@ export default function Command() {
         <MenuBarExtra.Section title="⚠ 索引が古い">
           <MenuBarExtra.Item
             title={`基準日 ${today.base_date}`}
-            subtitle="再生成コマンドをコピー"
+            subtitle="索引を再生成"
+            icon={Icon.ArrowClockwise}
+            onAction={() => regenerateFromMenuBar(revalidate)}
+          />
+          <MenuBarExtra.Item
+            title="再生成コマンドをコピー"
+            icon={Icon.Clipboard}
             onAction={() => Clipboard.copy(REGENERATE_COMMAND)}
           />
         </MenuBarExtra.Section>
@@ -97,6 +111,15 @@ export default function Command() {
           icon={Icon.List}
           title="今日の候補を開く"
           onAction={() => launchCommand({ name: "today", type: LaunchType.UserInitiated })}
+        />
+        <MenuBarExtra.Item
+          icon={Icon.AppWindowGrid2x2}
+          title="タスクビューを開く"
+          onAction={() =>
+            openTaskView("today").catch((error: unknown) =>
+              showHUD(`タスクビューを開けません: ${error instanceof Error ? error.message : String(error)}`),
+            )
+          }
         />
         <MenuBarExtra.Item
           icon={Icon.Document}

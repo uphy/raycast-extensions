@@ -15,9 +15,6 @@ export const SUPPORTED_SCHEMA_VERSION = 1;
 
 const INDEX_RELATIVE_PATH = "tasks/_scripts/.index.json";
 
-/** 索引が無い・古いときに案内するコマンド（vault ルートで実行する）。 */
-export const REGENERATE_COMMAND = "python3 tasks/_scripts/today.py --write";
-
 export type Checklist = {
   done: number;
   total: number;

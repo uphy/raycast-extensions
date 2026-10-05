@@ -1,7 +1,7 @@
 import { Action, ActionPanel, Color, Icon, List } from "@raycast/api";
 import { usePromise } from "@raycast/utils";
 import { useState } from "react";
-import { IndexUnavailable, StaleNotice } from "./components/index-state";
+import { IndexUnavailable, RegenerateAction, StaleNotice } from "./components/index-state";
 import { TaskActions, TaskDetail } from "./components/task";
 import { Candidate, excludedLabel, LoadedIndex, loadIndex, priorityColor, shortDate, statusIcon, Task } from "./model";
 
@@ -10,14 +10,14 @@ type Scope = "today" | "excluded" | "all";
 // 順序も除外理由も vault 側の today.py が決めている（`今日の候補.md` と同じ導出結果）。
 // ここは索引の today セクションをそのまま並べるだけで、選び直しはしない。
 export default function Command() {
-  const { data, isLoading } = usePromise(loadIndex);
+  const { data, isLoading, revalidate } = usePromise(loadIndex);
   const [scope, setScope] = useState<Scope>("today");
   const [showingDetail, setShowingDetail] = useState(true);
 
   if (data && !data.ok) {
     return (
       <List>
-        <IndexUnavailable load={data} />
+        <IndexUnavailable load={data} onRegenerated={revalidate} />
       </List>
     );
   }
@@ -41,7 +41,7 @@ export default function Command() {
         </List.Dropdown>
       }
     >
-      {data ? <StaleNotice data={data} /> : null}
+      {data ? <StaleNotice data={data} onRegenerated={revalidate} /> : null}
 
       {data && today && showToday ? (
         <List.Section title="今日の候補" subtitle={`${today.candidates.length}件 ~${today.total_estimate_days}d`}>
@@ -55,6 +55,7 @@ export default function Command() {
                 candidate={candidate}
                 showingDetail={showingDetail}
                 onToggleDetail={() => setShowingDetail((current) => !current)}
+                onRegenerated={revalidate}
               />
             ) : null;
           })}
@@ -79,6 +80,7 @@ export default function Command() {
                 ]}
                 showingDetail={showingDetail}
                 onToggleDetail={() => setShowingDetail((current) => !current)}
+                onRegenerated={revalidate}
               />
             ) : null;
           })}
@@ -95,8 +97,10 @@ export default function Command() {
                 data={data}
                 task={task}
                 accessories={[{ tag: excludedLabel(item.reason_code), tooltip: item.reason }]}
+                blockedBy={item.blocked_by}
                 showingDetail={showingDetail}
                 onToggleDetail={() => setShowingDetail((current) => !current)}
+                onRegenerated={revalidate}
               />
             ) : null;
           })}
@@ -112,6 +116,7 @@ function CandidateItem(props: {
   candidate: Candidate;
   showingDetail: boolean;
   onToggleDetail: () => void;
+  onRegenerated: () => void;
 }) {
   const { task, candidate } = props;
   const accessories: List.Item.Accessory[] = [];
@@ -145,10 +150,12 @@ function TaskItem(props: {
   task: Task;
   candidate?: Candidate;
   accessories: List.Item.Accessory[];
+  blockedBy?: string[];
   showingDetail: boolean;
   onToggleDetail: () => void;
+  onRegenerated: () => void;
 }) {
-  const { data, task, candidate, accessories, showingDetail, onToggleDetail } = props;
+  const { data, task, candidate, accessories, blockedBy, showingDetail, onToggleDetail, onRegenerated } = props;
   return (
     <List.Item
       icon={statusIcon(task.status)}
@@ -159,9 +166,10 @@ function TaskItem(props: {
       detail={<TaskDetail data={data} task={task} candidate={candidate} />}
       actions={
         <ActionPanel>
-          <TaskActions data={data} task={task} />
+          <TaskActions data={data} task={task} blockedBy={blockedBy} />
           <ActionPanel.Section>
             <DetailToggle showingDetail={showingDetail} onToggle={onToggleDetail} />
+            <RegenerateAction onRegenerated={onRegenerated} />
           </ActionPanel.Section>
         </ActionPanel>
       }

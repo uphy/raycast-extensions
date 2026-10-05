@@ -23,6 +23,12 @@
       "mode": "view"
     },
     {
+      "name": "capture-task",
+      "title": "Capture Task",
+      "description": "Hand a new work item to the vault's task-manage skill through herdr, prefilled from the clipboard",
+      "mode": "view"
+    },
+    {
       "name": "top-task",
       "title": "Top Task",
       "description": "Keep today's first candidate in the menu bar",
@@ -52,6 +58,50 @@
           ]
         }
       ]
+    },
+    {
+      "name": "start-task",
+      "title": "Start Task",
+      "description": "Start or close a work item in herdr by name. Meant to be triggered by a deeplink from the vault's HTML task view.",
+      "mode": "no-view",
+      "arguments": [
+        {
+          "name": "task",
+          "type": "text",
+          "required": true,
+          "placeholder": "タスク名"
+        },
+        {
+          "name": "action",
+          "type": "text",
+          "required": false,
+          "placeholder": "run | close"
+        }
+      ]
+    },
+    {
+      "name": "morning-planning",
+      "title": "Morning Planning",
+      "description": "Open a herdr tab and run the task-manage planning mode for today",
+      "mode": "no-view"
+    },
+    {
+      "name": "daily-routine",
+      "title": "Daily Routine",
+      "description": "Open a herdr tab and run the task-manage routine mode",
+      "mode": "no-view"
+    },
+    {
+      "name": "wrap-up",
+      "title": "Wrap up Session",
+      "description": "Open a herdr tab and run the task-manage wrap mode to close out the session",
+      "mode": "no-view"
+    },
+    {
+      "name": "task-query",
+      "title": "Review Work Items",
+      "description": "Open a herdr tab and run the task-manage list mode to take stock of the work items",
+      "mode": "no-view"
     }
   ],
   "preferences": [
@@ -99,7 +149,7 @@
       "required": false,
       "title": "Path",
       "description": "Directories appended to PATH so that herdr can be found. Raycast does not inherit the login shell PATH.",
-      "default": "/opt/homebrew/bin:/usr/local/bin"
+      "default": "~/.local/bin:/opt/homebrew/bin:/usr/local/bin"
     }
   ],
   "dependencies": {
